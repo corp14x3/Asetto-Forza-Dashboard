@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SimTeleNio - Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+        }
+        .hud {
+            position: absolute; inset: 0;
+            display: flex; justify-content: space-around; align-items: center;
+            padding: 20px; gap: 40px;
+            will-change: contents;
+        }
+        .status { 
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            font-weight: 600; letter-spacing: 1px; font-size: 0.9rem;
+            pointer-events: none;
+        }
+        .status.connected { color: #4CAF50; }
+        .status.disconnected { color: #ff4055; }
+        
+        .gauge-container {
+            position: relative;
+            width: 320px;
+            height: 320px;
+            flex-shrink: 0;
+        }
+        
+        .gauge {
+            position: relative; 
+            width: 100%; 
+            height: 100%;
+            border-radius: 50%;
+            background: #1a1a1a;
+            box-shadow: 
+                inset 0 0 20px rgba(0,0,0,.6),
+                0 10px 30px rgba(0,0,0,.8);
+            overflow: hidden;
+            border: 2px solid #333;
+            will-change: transform;
+            transform: translateZ(0);
+        }
+        
+        .gauge-face {
+            position: absolute;
+            inset: 15px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 40% 40%, #1f1f1f 0%, #0a0a0a 100%);
+            border: 1px solid #444;
+        }
+        
+        .ticks { position: absolute; inset: 12%; }
+        
+        .tick { 
+            position: absolute; left: 50%; top: 50%; 
+            width: 1.5px;
+            background: #ffffff;
+            transform-origin: bottom;
+            will-change: transform;
+        }
+        .tick.major { width: 2px; height: 12%; background: #ffffff; }
+        .tick.minor { height: 6%; opacity: 0.6; }
+        
+        .label { 
+            position: absolute; left: 50%; top: 50%; 
+            transform-origin: bottom; 
+            color: #ffffff; 
+            font-weight: 600; 
+            font-size: 0.8rem;
+            text-shadow: 0 0 1px rgba(0,0,0,.8);
+            pointer-events: none;
+            user-select: none;
+        }
+        .label.minor { 
+            font-size: 0.65rem; 
+            font-weight: 400; 
+            opacity: 0.7;
+        }
+        
+        .needle {
+            position: absolute; 
+            left: 50%; top: 50%; 
+            width: 2.5%; 
+            height: 42%;
+            background: #ff5555;
+            transform-origin: 50% 90%;
+            transform: translateZ(0);
+            border-radius: 3px; 
+            filter: drop-shadow(0 1px 4px rgba(255,70,70,.6));
+            z-index: 10;
+            will-change: transform;
+        }
+        
+        .hub { 
+            position: absolute; left: 50%; top: 50%; 
+            width: 18px; height: 18px; 
+            transform: translate(-50%,-50%); 
+            border-radius: 50%; 
+            background: #333333;
+            box-shadow: inset 0 0 6px rgba(0,0,0,.6), 0 1px 4px rgba(0,0,0,.8);
+            border: 2px solid #555;
+            z-index: 11;
+        }
+        
+        .readout { 
+            position: absolute; bottom: 15%; left: 50%; 
+            transform: translateX(-50%);
+            font-size: 2rem; 
+            font-weight: 700; 
+            color: #ffffff;
+            text-shadow: 0 1px 2px rgba(0,0,0,.5);
+            z-index: 5;
+            pointer-events: none;
+            user-select: none;
+        }
+        
+        .unit { 
+            font-size: 0.75rem; 
+            opacity: 0.85; 
+            margin-left: 3px;
+        }
+        
+        /* .redline {
+            position: absolute;
+            inset: 12%;
+            border-radius: 50%;
+            z-index: 1;
+            display: none;
+        } */
+        
+        .shiftlight {
+            position: absolute;
+            bottom: 8%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 20px;
+            background: #ff4055;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            display: none;
+            z-index: 8;
+            box-shadow: 0 0 12px rgba(255,70,70,.6);
+            pointer-events: none;
+        }
+        
+        .fullscreen-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 44px;
+            height: 44px;
+            border: none;
+            background: rgba(0, 0, 0, 0.5);
+            color: #ffffff;
+            font-size: 1.2rem;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 20;
+            transition: background 0.2s;
+            border: 1px solid #555;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        .fullscreen-btn:active {
+            background: rgba(0, 0, 0, 0.7);
+        }
+        
+        .gear {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 6rem;
+            font-weight: 900;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(255,70,70,.3);
+            z-index: 6;
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="hud">
+        <div class="status" id="status">⚠️ Veri Bekleniyor...</div>
+        
+        <!-- Speedometer -->
+        <div class="gauge-container">
+            <div class="gauge">
+                <div class="gauge-face"></div>
+                <div class="ticks" id="ticks-speed"></div>
+                <div class="needle" id="needle-speed"></div>
+                <div class="hub"></div>
+                <div class="readout"><span id="speed">0</span><span class="unit">km/h</span></div>
+            </div>
+        </div>
+        
+        <!-- Tachometer -->
+        <div class="gauge-container">
+            <div class="gauge">
+                <div class="gauge-face"></div>
+                <div class="redline" id="redline"></div>
+                <div class="ticks" id="ticks-rpm"></div>
+                <div class="needle" id="needle-rpm"></div>
+                <div class="shiftlight" id="shiftlight">SHIFT</div>
+                <div class="hub"></div>
+                <div class="readout"><span id="rpm">0</span><span class="unit">/min×1k</span></div>
+                <div class="gear" id="gear">N</div>
+            </div>
+        </div>
+        
+        <button class="fullscreen-btn" id="fullscreen-btn" title="Tam Ekran">⛶</button>
+    </div>
+
+    <script>
+        const socket = io();
+
+        const statusEl = document.getElementById('status');
+        const speedEl = document.getElementById('speed');
+        const rpmEl = document.getElementById('rpm');
+        const needleSpeed = document.getElementById('needle-speed');
+        const needleRpm = document.getElementById('needle-rpm');
+        const ticksSpeed = document.getElementById('ticks-speed');
+        const ticksRpm = document.getElementById('ticks-rpm');
+
+        // Gauge config
+        const speedMax = 330; // km/h
+        let rpmMax = 8000;    // rpm
+        let redlineStart = 6800; // rpm
+        let shiftLightRpm = 7280; // rpm
+        const startAngle = -130; // degrees
+        const endAngle = 110;    // degrees (240 derece yay)
+
+        function createTicks(container, max, stepMajor, stepMinor, isSpeed) {
+            container.innerHTML = '';
+            for (let v = 0; v <= max; v += stepMinor) {
+                const frac = v / max;
+                const angle = startAngle + frac * (endAngle - startAngle);
+                const el = document.createElement('div');
+                const isMajor = v % stepMajor === 0;
+                el.className = 'tick' + (isMajor ? ' major' : ' minor');
+                el.style.transform = `translate(-50%, -100%) rotate(${angle}deg)`;
+                container.appendChild(el);
+                // All numbers
+                const lab = document.createElement('div');
+                lab.className = 'label' + (isMajor ? '' : ' minor');
+                lab.style.transform = `translate(-50%, -115%) rotate(${angle}deg)`;
+                lab.textContent = isSpeed ? v : (v/1000);
+                container.appendChild(lab);
+            }
+        }
+
+        createTicks(ticksSpeed, speedMax, 30, 10, true);
+        createTicks(ticksRpm, rpmMax, 1000, 200, false);
+
+        const redlineEl = document.getElementById('redline');
+        function updateRedlineArc(){
+            const startFrac = Math.max(0, redlineStart / rpmMax);
+            const endFrac = 1;
+            const startDeg = startAngle + startFrac * (endAngle - startAngle);
+            const endDeg = startAngle + endFrac * (endAngle - startAngle);
+            const sweep = endDeg - startDeg;
+            redlineEl.style.background = `conic-gradient(from ${startDeg}deg, transparent 0deg, transparent ${Math.max(0,sweep-1)}deg, #ff4055 ${Math.max(0,sweep-1)}deg, #ff4055 ${Math.max(1,sweep)}deg)`;
+            redlineEl.style.display = 'block';
+        }
+        updateRedlineArc();
+
+        function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+        function mapToAngle(value, max) {
+            const frac = clamp(value, 0, max) / max;
+            return startAngle + frac * (endAngle - startAngle);
+        }
+
+        // Smooth update throttling - 60fps update lock
+        let lastUpdateTime = 0;
+        const updateInterval = 1000 / 60; // 16.67ms for 60fps
+
+        socket.on('telemetry_update', (data) => {
+            const now = performance.now();
+            if (now - lastUpdateTime < updateInterval) return;
+            lastUpdateTime = now;
+
+            // Debug: print data
+            console.log('Assetto Data:', data);
+
+            // Update RPM limits
+            if (data.engine_max_rpm && data.engine_max_rpm > 1000) {
+                rpmMax = data.engine_max_rpm;
+                redlineStart = Math.round(rpmMax * 0.85);
+                shiftLightRpm = Math.round(rpmMax * 0.91);
+                updateRedlineArc();
+            }
+            
+            // Status - batch update
+            const isConnected = data.connected;
+            if (isConnected) { 
+                if (statusEl.textContent !== '✅ Bağlı') {
+                    statusEl.textContent = '✅ Bağlı'; 
+                    statusEl.className = 'status connected'; 
+                }
+            } else { 
+                if (statusEl.textContent !== '⚠️ Veri Bekleniyor...') {
+                    statusEl.textContent = '⚠️ Veri Bekleniyor...'; 
+                    statusEl.className = 'status disconnected'; 
+                }
+            }
+
+            // Speed - only update if changed
+            const speedRounded = Math.round(data.speed_kmh);
+            if (speedEl.textContent !== String(speedRounded)) {
+                speedEl.textContent = speedRounded;
+            }
+            const speedAngle = mapToAngle(data.speed_kmh, speedMax);
+            needleSpeed.style.transform = `translate(-50%, -90%) rotate(${speedAngle}deg)`;
+
+            // RPM - only update if changed
+            const rpmText = data.rpm.toLocaleString();
+            if (rpmEl.textContent !== rpmText) {
+                rpmEl.textContent = rpmText;
+            }
+            const rpmAngle = mapToAngle(data.rpm, rpmMax);
+            needleRpm.style.transform = `translate(-50%, -90%) rotate(${rpmAngle}deg)`;
+            
+            // Shift light
+            const shiftEl = document.getElementById('shiftlight');
+            const shouldShowShift = data.rpm >= shiftLightRpm;
+            if ((shiftEl.style.display === 'none') !== (!shouldShowShift)) {
+                shiftEl.style.display = shouldShowShift ? 'block' : 'none';
+            }
+
+            // Gear
+            const gearEl = document.getElementById('gear');
+            const g = data.gear;
+            // Assetto mapping: -1=R, 0=N, 1+=1+ (subtract 1 from positive gears)
+            let gearText = 'N';
+            if (g === 0) {
+                gearText = 'R';
+            } else if (g === 1) {
+                gearText = 'N';
+            } else if (g > 0) {
+                gearText = g - 1;
+            }
+            if (gearEl.textContent !== gearText) {
+                gearEl.textContent = gearText;
+            }
+        });
+
+        // Fullscreen button
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        fullscreenBtn.addEventListener('click', () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            } else {
+                document.documentElement.requestFullscreen().catch(() => {});
+            }
+        });
+    </script>
+</body>
+</html>
