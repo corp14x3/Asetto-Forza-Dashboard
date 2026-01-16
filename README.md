@@ -4,8 +4,6 @@
 
 ---
 
-## 🇺🇸 English Guide
-
 ### Features
 - **Dual Game Support:** Fully compatible with Assetto Corsa and Forza Horizon 5.
 - **Web Dashboard:** Modern, fluid (60 FPS) speed and RPM gauges.
@@ -48,4 +46,5 @@
 - `sim_info.py`: Shared memory structures for AC.
 - `templates/index.html`: The UI for the dashboard.
 - `telemetry/sim_arduino.py`: Python-to-Arduino bridge.
+
 - `telemetry/telemetry.ino`: Arduino firmware.
